@@ -58,7 +58,7 @@ This removes poisoned credential pool entries. The pool re-seeds from the correc
 ## Install
 
 ```bash
-curl -sL https://raw.githubusercontent.com/gymaira1990-jpg/hermes-auth-check/main/hermes-auth-check \
+curl -sL https://github.com/gymaira1990-jpg/hermes-auth-check/releases/latest/download/hermes-auth-check \
   -o /usr/local/bin/hermes-auth-check && chmod +x /usr/local/bin/hermes-auth-check
 ```
 

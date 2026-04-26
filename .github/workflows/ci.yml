@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Python syntax check
+        run: python3 -m py_compile hermes-auth-check
+      
+      - name: Self-test (detect poisoned keys)
+        run: |
+          mkdir -p ~/.hermes
+          cat > ~/.hermes/auth.json << 'EOF'
+          {
+            "version": 1,
+            "credential_pool": {
+              "custom:deepseek-v4-flash": [
+                {"source": "model_config", "access_token": "sk-c25b3bd5a67d461790ecdc575fa2edd4", "label": "good"},
+                {"source": "config:deepseek-v4-flash", "access_token": "sk-c25...edd4", "label": "poisoned"}
+              ]
+            }
+          }
+          EOF
+          
+          python3 hermes-auth-check --json | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          assert data['total_entries'] == 2, f'total={data[\"total_entries\"]}'
+          assert data['poisoned_entries'] == 1, f'poisoned={data[\"poisoned_entries\"]}'
+          print(f'✅ Detected {data[\"poisoned_entries\"]} poisoned / {data[\"total_entries\"]} total')
+          "
+      
+      - name: Test fix (dry run — no changes)
+        run: |
+          python3 hermes-auth-check --fix --dry-run --json | python3 -c "
+          import sys, json
+          with open('$HOME/.hermes/auth.json') as f:
+              after = json.load(f)
+          pool = after['credential_pool']['custom:deepseek-v4-flash']
+          assert len(pool) == 2, f'Expected 2 (dry-run), got {len(pool)}'
+          print('✅ Dry run: entries untouched')
+          "
+      
+      - name: Test fix (real — removes poisoned entry)
+        run: |
+          python3 hermes-auth-check --fix --json | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          assert data.get('fixed'), 'missing fixed=true'
+          assert data.get('entries_removed') == 1, f'removed={data.get(\"entries_removed\")}'
+          with open('$HOME/.hermes/auth.json') as f:
+              after = json.load(f)
+          pool = after['credential_pool']['custom:deepseek-v4-flash']
+          assert len(pool) == 1, f'Expected 1 after fix, got {len(pool)}'
+          tok = pool[0]['access_token']
+          assert len(tok) > 20, f'Remaining key too short: {tok}'
+          print(f'✅ Fixed: 1 removed, remaining key healthy')
+          "

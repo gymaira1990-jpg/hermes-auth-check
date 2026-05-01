@@ -1,5 +1,56 @@
 # 🔐 Hermes Auth Check
 
+**检测并修复 Hermes Agent 凭据池中被截断的 API 密钥**
+**Detect and fix truncated API keys in your Hermes Agent credential pool.**
+
+---
+
+## 这是什么 · What Is This
+
+如果你遇到 **401 认证失败** 或 DeepSeek V4 的神秘 **400 错误**——真正的元凶可能不是 API bug，而是 **被污染的凭据池**。
+If you're getting **401 auth failures** or mysterious **400 errors** with DeepSeek V4 — the real culprit might be a **poisoned credential pool**.
+
+## 问题现象 · The Problem
+
+Hermes Agent 默认启用 `security.redact_secrets: true`。当AI通过 `read_file()` 读取文件时，`redact_sensitive_text()` 会对所有输出进行脱敏处理——**包括 API 密钥**。
+Hermes Agent has `security.redact_secrets: true` by default. When your AI reads files, `redact_sensitive_text()` applies to all output — **including API keys**.
+
+```
+sk-c25b3bd5a67d461790ecdc575fa2edd4   →   sk-c25...edd4
+```
+
+如果截断后的值被写回 `~/.hermes/auth.json` 凭据池，池中存储的就是无效密钥 → API收到截断密钥 → **401认证失败** → 触发跨供应商回滚循环 → 看起来像是 DeepSeek 的 API bug。
+If the truncated value gets written to the credential pool, the pool stores an invalid key → 401 auth failure → cross-provider fallback loop → looks like a DeepSeek API bug.
+
+## 检测 · Detection
+
+```bash
+hermes-auth-check
+```
+
+输出示例 Sample output:
+```
+  🔐 Hermes Auth Check — Credential Pool Audit
+  Total entries:  4  |  Healthy:  3  |  Poisoned:  1
+```
+
+## 修复 · Fix
+
+The tool automatically removes poisoned entries. 该工具会自动移除被污染的凭据条目。
+
+```bash
+hermes-auth-check --fix
+```
+
+## License
+
+MIT
+
+
+---
+
+# 🔐 Hermes Auth Check
+
 **Detect and fix truncated API keys in your Hermes Agent credential pool.**
 
 If you're getting **401 auth failures** or mysterious **"reasoning_content must be passed back" 400 errors** with DeepSeek V4 — the real culprit might be a **poisoned credential pool**, not the reasoning content bug.
